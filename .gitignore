@@ -1,0 +1,29 @@
+# Archivos compilados de Haskell
+*.hi
+*.o
+*.exe
+game
+Main
+
+# Cabal
+dist/
+dist-newstyle/
+.cabal-sandbox/
+cabal.sandbox.config
+cabal.project.local
+cabal.project.local~
+
+# Stack
+.stack-work/
+stack.yaml.lock
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
