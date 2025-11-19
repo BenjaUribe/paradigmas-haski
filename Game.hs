@@ -130,9 +130,9 @@ createEnemy Skeleton = Enemy
 -- ACCIONES DEL JUEGO (usando State)
 -- =============================================================================
 takeDamage :: Enemy -> State Player String
-takeDamage Enemy = do
-    modify (\player -> player { playerHealth = playerHealth player - round (enemyDamage Enemy) })
-    return ("Ha recibido " ++ (show (enemyDamage Enemy)) ++" de daño")
+takeDamage enemy = do
+    modify (\player -> player { playerHealth = playerHealth player - round (enemyDamage enemy) })
+    return ("Ha recibido " ++ (show (enemyDamage enemy)) ++" de daño")
 
 takeHeal :: Int -> State Player String
 takeHeal heal = do
@@ -151,7 +151,7 @@ powerUpSpeed boost = do
     return ("La velocidad ha sido incrementada en " ++ (show boost) ++ " puntos")
 
 doAttack :: Player -> State Enemy String
-doAtack player = do
+doAttack player = do
     modify (\enemy -> enemy { enemyHealth = enemyHealth enemy - round (playerDamage player) })
     return ("El enemigo ha recibido " ++ (show (round (playerDamage player))) ++ " de daño")
 
