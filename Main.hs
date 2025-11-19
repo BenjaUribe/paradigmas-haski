@@ -1,47 +1,103 @@
+{-|
+Módulo: Main
+Descripción: Módulo principal que maneja la interfaz gráfica, eventos de entrada
+             y el bucle principal del juego usando Gloss.
+
+ESTRUCTURA DEL ARCHIVO:
+- CONFIGURACIÓN: Ventana, colores, FPS
+- TIPOS DE DATOS: GameScene, GameWorld
+- RENDERIZADO: Funciones para dibujar cada escena
+- MANEJO DE EVENTOS: Input de teclado y mouse
+- ACTUALIZACIÓN: Lógica de update del juego
+- MAIN: Punto de entrada del programa
+
+PARA AGREGAR NUEVAS ESCENAS:
+1. Añadir constructor a GameScene
+2. Crear función render[NombreEscena]
+3. Agregar case en render principal
+4. Implementar navegación en handleInput
+
+PARA MODIFICAR UI:
+- Cambiar funciones render*
+- Ajustar posiciones y tamaños en las funciones de dibujo
+- Modificar colores en la sección CONFIGURACIÓN
+-}
+
 module Main where
 
-import Game
-import Graphics.Gloss
-import Graphics.Gloss.Interface.IO.Game
-import Graphics.Gloss.Data.Picture
-import Control.Monad.State
-import qualified Data.Set as Set
-import System.Exit (exitSuccess)
+-- === IMPORTS ===
+import Game                           -- Lógica del juego y tipos de datos
+import Graphics.Gloss                 -- Biblioteca gráfica principal
+import Graphics.Gloss.Interface.IO.Game -- Para juegos con IO
+import Graphics.Gloss.Data.Picture     -- Manejo de imágenes
+import Control.Monad.State            -- Mónada State (actualmente no usada)
+import qualified Data.Set as Set       -- Para conjuntos (actualmente no usado)
+import System.Exit (exitSuccess)      -- Para salir del programa
 
 -- =============================================================================
--- CONFIGURACIÓN DE LA VENTANA
+-- CONFIGURACIÓN DE LA VENTANA Y JUEGO
 -- =============================================================================
 
--- Dimensiones de la ventana
+-- | Dimensiones de la ventana del juego
 windowWidth, windowHeight :: Float
-windowWidth = 1280
-windowHeight = 720
+windowWidth = 1280   -- Ancho en píxeles
+windowHeight = 720   -- Alto en píxeles
 
--- ventana del juego con dimensiones 1280x720
+-- | Configuración de la ventana del juego
+-- InWindow crea una ventana redimensionable
+-- Formato: InWindow "titulo" (ancho, alto) (pos_x, pos_y)
 window :: Display
-window = InWindow "Las flipantes aventuras del Haski-Mundo" (round windowWidth, round windowHeight) (100, 100)
+window = InWindow "Las flipantes aventuras del Haski-Mundo" 
+                  (round windowWidth, round windowHeight) 
+                  (100, 100)  -- Posición inicial en pantalla
 
+-- | Color de fondo general del juego
+-- makeColorI usa valores 0-255 para RGBA
 backgroundColor :: Color
 backgroundColor = makeColorI 20 20 40 255  -- Azul oscuro
 
+-- | Frames por segundo del juego
 fps :: Int
 fps = 60
 
 -- =============================================================================
--- ESTADO DEL JUEGO CON GRÁFICOS
+-- TIPOS DE DATOS DEL JUEGO
 -- =============================================================================
+{-|
+Esta sección define los tipos de datos específicos para la interfaz gráfica.
 
--- Estados/Escenas del juego
-data GameScene = MainMenu | ClassSelection | InGame | CreditsMenu deriving (Show, Eq)
+GAMESCENE: Representa las diferentes pantallas del juego
+GAMEWORLD: Estado completo de la aplicación gráfica
 
--- Estado completo del juego
+PARA AGREGAR NUEVA ESCENA:
+1. Añadir constructor a GameScene
+2. Crear función render[NuevaEscena] en sección RENDERIZADO
+3. Agregar case en función render principal
+4. Implementar navegación en handleInput
+
+PARA AGREGAR NUEVOS CAMPOS A GAMEWORLD:
+1. Añadir campo aquí
+2. Actualizar initialWorld
+3. Usar en funciones de render y update según sea necesario
+-}
+
+-- | Escenas/pantallas disponibles en el juego
+data GameScene = 
+    MainMenu       -- ^ Menú principal con opciones de jugar, créditos, salir
+  | ClassSelection -- ^ Pantalla de selección de clase de personaje
+  | InGame         -- ^ Pantalla principal del juego (combate, HUD)
+  | CreditsMenu    -- ^ Pantalla de créditos
+  deriving (Show, Eq)
+
+-- | Estado completo de la aplicación gráfica
+-- Este tipo contiene toda la información necesaria para renderizar y manejar eventos
 data GameWorld = GameWorld
-    { currentScene :: GameScene           -- Escena actual
-    , worldPlayer :: Player              -- Jugador
-    , selectedMenuOption :: Int          -- Opción seleccionada en menús
-    , selectedAction :: Int              -- Acción seleccionada en combate (0=Atacar, 1=Bloquear, 2=Escapar)
-    , shouldExit :: Bool                 -- Indica si se debe salir del juego
-    , backgroundImage :: Picture         -- Imagen de fondo del menú
+    { currentScene :: GameScene      -- ^ Escena actual que se está mostrando
+    , worldPlayer :: Player          -- ^ Jugador actual (del módulo Game)
+    , selectedMenuOption :: Int      -- ^ Índice de opción seleccionada en menús (0-based)
+    , selectedAction :: Int          -- ^ Acción seleccionada en combate (0=Atacar, 1=Bloquear, 2=Escapar)
+    , shouldExit :: Bool             -- ^ Flag para indicar que se debe cerrar el juego
+    , backgroundImage :: Picture     -- ^ Imagen de fondo cargada para el menú
     } deriving (Show)
 
 -- Estado inicial del mundo
@@ -58,14 +114,39 @@ initialWorld chosenClass bgImage = GameWorld
 -- =============================================================================
 -- RENDERIZADO
 -- =============================================================================
+{-|
+Esta sección contiene todas las funciones de renderizado/dibujo del juego.
 
--- Renderizar el mundo completo según la escena actual
+ORGANIZACIÓN:
+- render: Función principal que delega según la escena
+- render[Escena]: Una función por cada escena del juego
+- render[Componente]: Funciones auxiliares para elementos de UI
+
+PARA MODIFICAR APARIENCIA:
+1. Encontrar la función render de la escena que quieres cambiar
+2. Modificar posiciones usando translate
+3. Cambiar colores usando color
+4. Ajustar tamaños usando scale
+5. Cambiar texto modificando los strings
+
+FUNCIONES DE GLOSS ÚTILES:
+- pictures [lista]: Combinar múltiples elementos
+- translate x y: Mover elemento
+- scale sx sy: Cambiar tamaño
+- color c: Cambiar color
+- text "string": Dibujar texto
+- rectangleSolid w h: Rectángulo relleno
+- rectangleWire w h: Rectángulo vacío
+-}
+
+-- | Función principal de renderizado
+-- Delega el renderizado a la función específica de cada escena
 render :: GameWorld -> Picture
 render world = case currentScene world of
-    MainMenu -> renderMainMenu world
-    ClassSelection -> renderClassSelection world
-    InGame -> renderGame world
-    CreditsMenu -> renderCreditsMenu world
+    MainMenu -> renderMainMenu world           -- Menú principal
+    ClassSelection -> renderClassSelection world -- Selección de clase
+    InGame -> renderGame world                 -- Juego principal
+    CreditsMenu -> renderCreditsMenu world     -- Créditos
 
 -- Renderizar menú principal
 renderMainMenu :: GameWorld -> Picture
