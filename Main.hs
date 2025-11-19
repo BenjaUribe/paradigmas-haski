@@ -86,6 +86,7 @@ data GameScene =
     MainMenu       -- ^ Menú principal con opciones de jugar, créditos, salir
   | ClassSelection -- ^ Pantalla de selección de clase de personaje
   | InGame         -- ^ Pantalla principal del juego (combate, HUD)
+  | SelectLevel    -- ^ Pantalla de selección de nivel
   | CreditsMenu    -- ^ Pantalla de créditos
   deriving (Show, Eq)
 
@@ -97,18 +98,20 @@ data GameWorld = GameWorld
     , selectedMenuOption :: Int      -- ^ Índice de opción seleccionada en menús (0-based)
     , selectedAction :: Int          -- ^ Acción seleccionada en combate (0=Atacar, 1=Bloquear, 2=Escapar)
     , shouldExit :: Bool             -- ^ Flag para indicar que se debe cerrar el juego
-    , backgroundImage :: Picture     -- ^ Imagen de fondo cargada para el menú
+    , gameImages :: GameImages       -- ^ Todas las imágenes del juego
+    , accesibleLvl :: [Int]          -- ^ Niveles accesibles
     } deriving (Show)
 
 -- Estado inicial del mundo
-initialWorld :: CharacterClass -> Picture -> GameWorld
-initialWorld chosenClass bgImage = GameWorld
+initialWorld :: CharacterClass -> GameImages -> GameWorld
+initialWorld chosenClass images = GameWorld
     { currentScene = MainMenu
     , selectedMenuOption = 0
     , worldPlayer = createPlayer chosenClass
     , selectedAction = 0
     , shouldExit = False
-    , backgroundImage = bgImage
+    , gameImages = images
+    , accesibleLvl = [1, 2, 3]  -- Inicialmente solo el primer nivel es accesible
     }
 
 -- =============================================================================
@@ -146,13 +149,14 @@ render world = case currentScene world of
     MainMenu -> renderMainMenu world           -- Menú principal
     ClassSelection -> renderClassSelection world -- Selección de clase
     InGame -> renderGame world                 -- Juego principal
+    SelectLevel -> renderSelectLevel world     -- Selección de nivel
     CreditsMenu -> renderCreditsMenu world     -- Créditos
 
 -- Renderizar menú principal
 renderMainMenu :: GameWorld -> Picture
 renderMainMenu world = pictures
     [ -- Imagen de fondo
-      backgroundImage world
+      menuBackground (gameImages world)
     , -- Título del juego
       translate (-600) 270 $ scale 0.5 0.5 $ color white $ text "HASKI-MUNDO"
     , -- Opciones del menú
@@ -210,10 +214,80 @@ renderClassOptions selected = pictures $
     thd4 (_,_,c,_) = c
     fth4 (_,_,_,d) = d
 
--- Renderizar el juego (solo fondo y HUD)
+-- Renderizar selección de nivel
+renderSelectLevel :: GameWorld -> Picture
+renderSelectLevel world = pictures
+    [ -- Imagen de fondo
+      selectLevelBg (gameImages world)
+    
+    -- CORRECCIÓN AQUÍ: Agregamos (accesibleLvl world) como segundo argumento
+    , renderFloorButtons (selectedMenuOption world) (accesibleLvl world)
+    
+    , -- Título
+      translate (-600) 280 $ scale 0.4 0.4 $ color white $ text "SELECCIONA TU PISO"
+    , -- Instrucciones
+      translate (-400) (-320) $ scale 0.2 0.2 $ color (greyN 0.7) $ text "Usa numeros 1-9 o flechas para seleccionar, Enter para confirmar, ESC para volver"
+    ]
+
+-- Definición de las posiciones de los niveles en la pantalla
+-- Formato: (NumeroDePiso, PosicionX, PosicionY)
+floorPositions :: [(Int, Float, Float)]
+floorPositions = 
+    [ (0,   0, -265)    -- Nivel 0: Inicio (Abajo Centro)
+    
+    , (1, -218, -130)   -- Nivel 1: Izquierda Abajo
+    , (2,    0, -130)   -- Nivel 2: Centro Abajo
+    , (3,  212, -130)   -- Nivel 3: Derecha Abajo
+    
+    , (4, -218,    0)   -- Nivel 4: Izquierda Medio
+    , (5,    0,    0)   -- Nivel 5: Centro Medio
+    , (6,  212,    0)   -- Nivel 6: Derecha Medio
+    
+    , (7, -218, 133)   -- Nivel 7: Izquierda Arriba
+    , (8,    0,  133)   -- Nivel 8: Centro Arriba
+    , (9,  212,  133)   -- Nivel 9: Derecha Arriba
+    
+    , (10,   0,  280)   -- Nivel 10: BOSS (Arriba del todo)
+    ]
+
+-- Renderizar botones de selección de pisos
+renderFloorButtons :: Int -> [Int] -> Picture
+renderFloorButtons selectedFloor accessible = pictures $
+    zipWith (\i floorData -> 
+        let (floorNumber, xPos, yPos) = floorData
+            -- Verificamos si este piso es accesible
+            isAccessible = floorNumber `elem` accessible
+            
+            -- Lógica visual
+            isSelected = i == selectedFloor
+            
+            -- Si es accesible usa tus colores normales, si no, usa gris oscuro (bloqueado)
+            buttonColor 
+                | floorNumber == 10 && isAccessible = yellow -- Boss dorado
+                | not isAccessible = makeColorI 246 105 105 200
+                | isSelected       = makeColorI 41 146 62 200
+                | otherwise        = makeColorI 255 255 255 80
+                
+            borderColor = if isAccessible && isSelected then yellow else greyN 0.5
+            
+        in pictures
+            [ translate xPos yPos $ color buttonColor $ circleSolid 25
+            , translate xPos yPos $ color borderColor $ circle 25
+            , translate (xPos - 10) (yPos - 8) $ scale 0.3 0.3 $ color white $ text (show floorNumber)
+            -- Solo mostrar texto "PISO X" si es accesible y está seleccionado
+            , if isSelected && isAccessible
+                then translate (xPos + 40) yPos $ scale 0.15 0.15 $ color yellow $ text ("PISO " ++ show floorNumber)
+                else blank
+            ]
+    ) [0..] floorPositions
+
+-- Renderizar el juego con fondo de arena y HUD
 renderGame :: GameWorld -> Picture
 renderGame world = pictures
-    [ drawGameHUD world
+    [ -- Fondo de arena escalado y posicionado para cubrir toda la ventana
+      translate 0 97 $ scale (windowWidth/800) (windowHeight/600) $ arenaBackground (gameImages world)
+    , -- HUD del juego encima del fondo
+      drawGameHUD world
     ]
 
 -- Renderizar menú de créditos
@@ -378,13 +452,72 @@ drawActionButtons panelX panelY selected = pictures $
 -- MANEJO DE EVENTOS
 -- =============================================================================
 
+getNextLevel :: Int -> [Int]
+getNextLevel currentLvl = case currentLvl of
+    0 -> [1, 2, 3]   -- Inicio: se abren los 3 caminos
+    -- Camino Izquierdo
+    1 -> [4]         -- El 1 solo sube al 4
+    4 -> [7, 8]      -- El 4 sube al 7 O cruza diagonal al 8
+    7 -> [10]        -- El 7 va al boss
+    -- Camino Central
+    2 -> [5]         -- El 2 solo sube al 5
+    5 -> [8]         -- El 5 solo sube al 8 (¿o conecta a otro lado según tu diseño?)
+    8 -> [10]        -- El 8 va al boss
+    -- Camino Derecho
+    3 -> [6, 5]      -- El 3 sube al 6 O cruza diagonal al 5
+    6 -> [9]         -- El 6 solo sube al 9
+    9 -> [10]        -- El 9 va al boss
+    -- Boss
+    10 -> []         -- Fin del juego
+    _ -> []
+
 -- Manejar entrada del teclado según la escena
 handleInput :: Event -> GameWorld -> GameWorld
 handleInput event world = case currentScene world of
     MainMenu -> handleMenuInput event world
     ClassSelection -> handleClassSelectionInput event world
     InGame -> handleGameInput event world
+    SelectLevel -> handleSelectLevelInput event world  
     CreditsMenu -> handleCreditsInput event world
+
+-- Manejo de eventos en selección de nivel
+handleSelectLevelInput :: Event -> GameWorld -> GameWorld
+-- 1. Manejo de tecla ENTER (Seleccionar nivel)
+handleSelectLevelInput (EventKey (SpecialKey KeyEnter) Down _ _) world =
+    let 
+        -- El mapa ahora es directo: índice 0 es nivel 0, índice 10 es nivel 10
+        selectedFloor = selectedMenuOption world
+        
+        -- Revisar si el piso elegido está permitido actualmente
+        canEnter = selectedFloor `elem` (accesibleLvl world)
+    in 
+        if canEnter
+        then world 
+            { currentScene = InGame
+            , selectedMenuOption = 0
+            -- Calculamos los próximos niveles usando tu nueva lógica
+            , accesibleLvl = getNextLevel selectedFloor 
+            }
+        else world -- Si está bloqueado, no hace nada
+
+-- 2. Manejo de Flecha DERECHA / ARRIBA (Avanzar en la lista)
+handleSelectLevelInput (EventKey (SpecialKey KeyRight) Down _ _) world =
+    world { selectedMenuOption = min 10 (selectedMenuOption world + 1) }
+handleSelectLevelInput (EventKey (SpecialKey KeyUp) Down _ _) world =
+    world { selectedMenuOption = min 10 (selectedMenuOption world + 1) }
+
+-- 3. Manejo de Flecha IZQUIERDA / ABAJO (Retroceder en la lista)
+handleSelectLevelInput (EventKey (SpecialKey KeyLeft) Down _ _) world =
+    world { selectedMenuOption = max 0 (selectedMenuOption world - 1) }
+handleSelectLevelInput (EventKey (SpecialKey KeyDown) Down _ _) world =
+    world { selectedMenuOption = max 0 (selectedMenuOption world - 1) }
+
+-- 4. Manejo de ESC (Volver al menú)
+handleSelectLevelInput (EventKey (SpecialKey KeyEsc) Down _ _) world =
+    world { currentScene = MainMenu, selectedMenuOption = 0 }
+
+-- 5. Ignorar cualquier otra tecla
+handleSelectLevelInput _ world = world
 
 -- Manejo de eventos en el menú principal
 handleMenuInput :: Event -> GameWorld -> GameWorld
@@ -433,7 +566,7 @@ handleGameInput _ world = world
 executeAction :: Int -> GameWorld -> GameWorld
 executeAction actionIndex world = 
     case actionIndex of
-        0 -> world  -- Atacar (por implementar)
+        0 -> world { currentScene = SelectLevel, selectedMenuOption = 0 }  -- Atacar -> ir a SelectLevel
         1 -> world  -- Bloquear (por implementar)  
         2 -> world { currentScene = MainMenu, selectedMenuOption = 0 }  -- Escapar (volver al menú)
         _ -> world
@@ -472,9 +605,9 @@ updateIO dt world = return $ update dt world
 
 main :: IO ()
 main = do
-    -- Cargar la imagen de fondo usando la función del módulo Game
-    bgImage <- loadGameImages
+    -- Cargar todas las imágenes del juego
+    images <- loadGameImages
     
     -- Iniciar directamente en el menú gráfico
     -- Por defecto creamos un Warrior (se puede cambiar desde el menú)
-    playIO window backgroundColor fps (initialWorld Warrior bgImage) renderIO handleInputIO updateIO
+    playIO window backgroundColor fps (initialWorld Warrior images) renderIO handleInputIO updateIO

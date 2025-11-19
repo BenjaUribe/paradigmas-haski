@@ -17,6 +17,7 @@ module Game
     , Enemy(..)             -- Tipo de datos del enemigo
     , CharacterClass(..)    -- Clases de personajes (Warrior, Tank, Rogue)
     , EnemyClass(..)        -- Tipos de enemigos
+    , GameImages(..)        -- Contenedor para todas las imágenes del juego
     
     -- === CONSTRUCTORES ===
     , createPlayer          -- Crear jugador con clase específica
@@ -77,7 +78,16 @@ data Enemy = Enemy
     , enemySpeed :: Float            -- ^ Velocidad del enemigo
     } deriving (Show, Eq)
 
-
+-- | Contenedor para todas las imágenes del juego
+-- PARA AGREGAR NUEVA IMAGEN:
+-- 1. Agregar campo aquí
+-- 2. Cargar en loadGameImages
+-- 3. Usar en funciones de renderizado
+data GameImages = GameImages
+    { menuBackground :: Picture      -- ^ Imagen de fondo del menú principal
+    , selectLevelBg :: Picture       -- ^ Imagen de fondo para selección de nivel
+    , arenaBackground :: Picture     -- ^ Imagen de fondo de la arena (InGame)       -- ^ Sprite del enemigo
+    } deriving (Show)
 
 -- =============================================================================
 -- CONSTRUCTORES
@@ -194,14 +204,26 @@ loadBackgroundImage imagePath = do
         return $ color (makeColorI 25 50 100 255) $ rectangleSolid 800 600
 
 -- | Cargar todas las imágenes necesarias para el juego
-loadGameImages :: IO Picture
+-- Retorna un GameImages con todas las imágenes cargadas
+loadGameImages :: IO GameImages
 loadGameImages = do
-    backgroundImg <- loadBackgroundImage "img/entry.bmp"
-    -- TODO: Cargar más imágenes aquí
-    -- playerImg <- loadBackgroundImage "img/player.bmp"
-    -- enemyImg <- loadBackgroundImage "img/enemy.bmp"
-    -- uiElements <- loadBackgroundImage "img/ui.bmp"
-    return backgroundImg
+    -- Cargar imagen de fondo del menú
+    menuBg <- loadBackgroundImage "img/entry.bmp"
+    
+    -- Cargar imagen de fondo para selección de nivel
+    levelBg <- loadBackgroundImage "img/niveles.bmp"
+      
+    -- Cargar imagen de fondo de la arena (InGame)
+    arenaBg <- loadBackgroundImage "img/arena.bmp"
+    
+    -- Cargar sprites del jugador y enemigo
+
+    
+    return GameImages
+        { menuBackground = menuBg
+        , selectLevelBg = levelBg
+        , arenaBackground = arenaBg
+        }
 
 -- =============================================================================
 -- LÓGICA DEL JUEGO
