@@ -100,6 +100,7 @@ data GameWorld = GameWorld
     , shouldExit :: Bool             -- ^ Flag para indicar que se debe cerrar el juego
     , gameImages :: GameImages       -- ^ Todas las imágenes del juego
     , accesibleLvl :: [Int]          -- ^ Niveles accesibles
+    , currentFloorEnemies :: [Enemy] -- ^ Enemigos del piso actual
     } deriving (Show)
 
 -- Estado inicial del mundo
@@ -112,6 +113,7 @@ initialWorld chosenClass images = GameWorld
     , shouldExit = False
     , gameImages = images
     , accesibleLvl = [1, 2, 3]  -- Inicialmente solo el primer nivel es accesible
+    , currentFloorEnemies = []  -- Sin enemigos al inicio
     }
 
 -- =============================================================================
@@ -220,7 +222,7 @@ renderSelectLevel world = pictures
     [ -- Imagen de fondo
       selectLevelBg (gameImages world)
     
-    -- CORRECCIÓN AQUÍ: Agregamos (accesibleLvl world) como segundo argumento
+    -- Botones de pisos
     , renderFloorButtons (selectedMenuOption world) (accesibleLvl world)
     
     , -- Título
@@ -281,14 +283,45 @@ renderFloorButtons selectedFloor accessible = pictures $
             ]
     ) [0..] floorPositions
 
--- Renderizar el juego con fondo de arena y HUD
+-- Renderizar el juego con fondo de arena, enemigos y HUD
 renderGame :: GameWorld -> Picture
 renderGame world = pictures
     [ -- Fondo de arena escalado y posicionado para cubrir toda la ventana
-      translate 0 97 $ scale (windowWidth/800) (windowHeight/600) $ arenaBackground (gameImages world)
+      translate 0 97 $ arenaBackground (gameImages world)
+    , -- Enemigos en el área de juego
+      renderEnemies (currentFloorEnemies world)
     , -- HUD del juego encima del fondo
       drawGameHUD world
     ]
+
+-- Renderizar enemigos como círculos de colores
+renderEnemies :: [Enemy] -> Picture
+renderEnemies enemies = pictures $ zipWith renderEnemy [0..] enemies
+  where
+    renderEnemy :: Int -> Enemy -> Picture
+    renderEnemy index enemy =
+        let -- Posiciones en horizontal, espaciados
+            xPos = 200 + fromIntegral index * 150
+            yPos = 50
+            -- Radio según la vida del enemigo
+            radius = 30 + (fromIntegral (enemyHealth enemy) / 10)
+            -- Color según el tipo de enemigo
+            enemyColor = case enemyClass enemy of
+                Slime -> makeColorI 100 200 100 255     -- Verde para Slime
+                Skeleton -> makeColorI 200 200 200 255  -- Gris para Skeleton
+                Reaper -> makeColorI 150 50 50 255      -- Rojo oscuro para Reaper
+        in pictures
+            [ -- Círculo del enemigo
+              translate xPos yPos $ color enemyColor $ circleSolid radius
+            , -- Borde del círculo
+              translate xPos yPos $ color white $ circle radius
+            , -- Vida del enemigo encima
+              translate (xPos - 15) (yPos + radius + 15) $ scale 0.15 0.15 $ color white $
+              text (show (enemyHealth enemy) ++ " HP")
+            , -- Nombre del tipo
+              translate (xPos - 20) (yPos - 5) $ scale 0.12 0.12 $ color black $
+              text (show (enemyClass enemy))
+            ]
 
 -- Renderizar menú de créditos
 renderCreditsMenu :: GameWorld -> Picture
@@ -490,6 +523,11 @@ handleSelectLevelInput (EventKey (SpecialKey KeyEnter) Down _ _) world =
         
         -- Revisar si el piso elegido está permitido actualmente
         canEnter = selectedFloor `elem` (accesibleLvl world)
+        
+        -- Obtener los enemigos del piso seleccionado
+        floorEnemies = case getFloorData selectedFloor of
+            Nothing -> []  -- Si no hay datos, lista vacía
+            Just floorData -> map createEnemy (Game.floorEnemies floorData)
     in 
         if canEnter
         then world 
@@ -497,6 +535,8 @@ handleSelectLevelInput (EventKey (SpecialKey KeyEnter) Down _ _) world =
             , selectedMenuOption = 0
             -- Calculamos los próximos niveles usando tu nueva lógica
             , accesibleLvl = getNextLevel selectedFloor 
+            -- Cargar enemigos del piso
+            , currentFloorEnemies = floorEnemies
             }
         else world -- Si está bloqueado, no hace nada
 
@@ -566,10 +606,71 @@ handleGameInput _ world = world
 executeAction :: Int -> GameWorld -> GameWorld
 executeAction actionIndex world = 
     case actionIndex of
-        0 -> world { currentScene = SelectLevel, selectedMenuOption = 0 }  -- Atacar -> ir a SelectLevel
-        1 -> world  -- Bloquear (por implementar)  
+        0 -> performAttack world  -- Atacar
+        1 -> world  { currentScene = SelectLevel, selectedMenuOption = 0 }  -- defender -> ir a SelectLevel
         2 -> world { currentScene = MainMenu, selectedMenuOption = 0 }  -- Escapar (volver al menú)
         _ -> world
+
+-- Realizar un ataque al primer enemigo de la lista
+performAttack :: GameWorld -> GameWorld
+performAttack world =
+    case currentFloorEnemies world of
+        [] -> world  -- No hay enemigos, no hacer nada
+        (enemy:rest) -> 
+            let player = worldPlayer world
+                -- Usar runState para ejecutar doAttack y obtener el enemigo actualizado
+                (message, updatedEnemy) = runState (doAttack player) enemy
+                -- Filtrar enemigos muertos (vida <= 0)
+                newEnemies = if enemyHealth updatedEnemy <= 0
+                            then rest  -- Eliminar el enemigo muerto
+                            else updatedEnemy : rest  -- Mantener el enemigo actualizado
+                -- Actualizar el mundo con los nuevos enemigos
+                worldAfterPlayerAttack = world { currentFloorEnemies = newEnemies }
+            in 
+                -- Después del ataque del jugador, los enemigos contraatacan
+                enemiesAttackPlayer worldAfterPlayerAttack
+
+-- Los enemigos atacan al jugador en secuencia
+enemiesAttackPlayer :: GameWorld -> GameWorld
+enemiesAttackPlayer world =
+    let enemies = currentFloorEnemies world
+        player = worldPlayer world
+        -- Aplicar el daño de todos los enemigos al jugador usando fold
+        updatedPlayer = foldl applyEnemyDamage player enemies
+        worldAfterCombat = world { worldPlayer = updatedPlayer }
+    in 
+        -- Verificar condiciones de victoria o derrota después del combate
+        checkCombatStatus worldAfterCombat
+  where
+    -- Función auxiliar que aplica el daño de un enemigo al jugador
+    applyEnemyDamage :: Player -> Enemy -> Player
+    applyEnemyDamage currentPlayer enemy =
+        let (message, newPlayer) = runState (takeDamage enemy) currentPlayer
+        in newPlayer
+
+-- Verificar el estado del combate después de un turno completo
+checkCombatStatus :: GameWorld -> GameWorld
+checkCombatStatus world
+    -- Si el jugador está muerto (HP <= 0), Game Over -> restaurar vida y volver al menú
+    | playerHealth (worldPlayer world) <= 0 = 
+        let restoredPlayer = createPlayer (playerClass (worldPlayer world))
+        in world 
+            { currentScene = MainMenu
+            , selectedMenuOption = 0
+            , worldPlayer = restoredPlayer  -- Restaurar vida del jugador
+            , accesibleLvl = [1, 2, 3]      -- Reiniciar progreso a los 3 primeros niveles
+            , currentFloorEnemies = []       -- Limpiar enemigos
+            }
+    
+    -- Si no quedan enemigos, Victoria -> ir a selección de nivel para continuar
+    | null (currentFloorEnemies world) = 
+        world 
+            { currentScene = SelectLevel
+            , selectedMenuOption = 0
+            }
+    
+    -- Si el jugador está vivo y quedan enemigos, continuar el combate
+    | otherwise = world
 
 -- Manejo de eventos en configuración/créditos
 handleCreditsInput :: Event -> GameWorld -> GameWorld
