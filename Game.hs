@@ -18,6 +18,7 @@ module Game
     , CharacterClass(..)    -- Clases de personajes (Warrior, Tank, Rogue)
     , EnemyClass(..)        -- Tipos de enemigos
     , GameImages(..)        -- Contenedor para todas las imágenes del juego
+    , FloorData(..)         -- Datos de cada piso (enemigos, recompensas, etc.)
     
     -- === CONSTRUCTORES ===
     , createPlayer          -- Crear jugador con clase específica
@@ -27,13 +28,16 @@ module Game
     , loadBackgroundImage   -- Cargar imagen de fondo individual
     , loadGameImages        -- Cargar todas las imágenes del juego
     
+    -- === CONFIGURACIÓN DE PISOS ===
+    , getFloorData          -- Obtener datos de un piso específico
+    , floorConfigurations   -- Configuración de enemigos por piso
+    
     -- === FUNCIONES DEL JUEGO ===
-    -- AGREGAR AQUÍ nuevas funciones de gameplay:
-    -- , atacar               -- Función de ataque
-    -- , bloquear             -- Función de defensa
-    -- , escapar              -- Función de escape
-    -- , calcularDaño         -- Cálculo de daño
-    -- , actualizarEstado     -- Actualizar estado del juego
+    , doAttack              -- Función de ataque del jugador
+    , takeDamage            -- Función para recibir daño
+    , takeHeal              -- Función para curarse
+    , powerUpDamage         -- Incrementar daño
+    , powerUpSpeed          -- Incrementar velocidad
     ) where
 
 -- === IMPORTS ===
@@ -65,7 +69,7 @@ data Player = Player
 
 data EnemyClass = 
     Slime     -- ^ Enemigo básico: vida baja, velocidad alta
-  | Troll     -- ^ Enemigo tanque: mucha vida, lento pero fuerte
+  | Reaper     -- ^ Enemigo tanque: mucha vida, lento pero fuerte
   | Skeleton  -- ^ Enemigo ágil: rápido y dañino pero frágil
   deriving (Show, Eq)
 
@@ -76,6 +80,14 @@ data Enemy = Enemy
     , enemyHealth :: Int             -- ^ Vida actual
     , enemyDamage :: Float           -- ^ Daño base por ataque
     , enemySpeed :: Float            -- ^ Velocidad del enemigo
+    } deriving (Show, Eq)
+
+-- | Datos de configuración para cada piso
+-- Contiene información sobre los enemigos que aparecen en cada piso
+data FloorData = FloorData
+    { floorNumber :: Int             -- ^ Número del piso (0-10)
+    , floorEnemies :: [EnemyClass]   -- ^ Lista de enemigos en este piso
+    , isBossFloor :: Bool            -- ^ ¿Es un piso de jefe?
     } deriving (Show, Eq)
 
 -- | Contenedor para todas las imágenes del juego
@@ -122,8 +134,8 @@ createEnemy Slime = Enemy
     , enemyDamage = 5.0
     , enemySpeed = 8.0
     }
-createEnemy Troll = Enemy
-    { enemyClass = Troll
+createEnemy Reaper = Enemy
+    { enemyClass = Reaper
     , enemyHealth = 150
     , enemyDamage = 9.0
     , enemySpeed = 4.0
@@ -229,4 +241,102 @@ loadGameImages = do
 -- LÓGICA DEL JUEGO
 -- =============================================================================
 
+-- =============================================================================
+-- CONFIGURACIÓN DE PISOS Y ENEMIGOS
+-- =============================================================================
+{-|
+Esta sección define qué enemigos aparecen en cada piso del juego.
+
+ESTRUCTURA:
+- floorConfigurations: Lista con todos los pisos y sus enemigos
+- getFloorData: Función para obtener datos de un piso específico
+
+PARA MODIFICAR ENEMIGOS DE UN PISO:
+1. Encontrar el piso en floorConfigurations
+2. Modificar la lista floorEnemies
+3. Opcionalmente actualizar la descripción
+
+PARA AGREGAR NUEVO PISO:
+1. Agregar nuevo FloorData a la lista
+2. Definir los enemigos apropiados
+3. Marcar isBossFloor = True si es un jefe
+-}
+
+-- | Configuración de todos los pisos del juego
+-- Define qué enemigos aparecen en cada piso
+floorConfigurations :: [FloorData]
+floorConfigurations =
+    [ -- Piso 0: Inicio (sin enemigos)
+      FloorData 
+        { floorNumber = 0
+        , floorEnemies = []
+        , isBossFloor = False
+        }
+    
+    -- Pisos 1-3: Zona inicial - Slimes
+    , FloorData 
+        { floorNumber = 1
+        , floorEnemies = [Slime, Slime]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 2
+        , floorEnemies = [Slime, Slime, Slime]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 3
+        , floorEnemies = [Slime, Skeleton]
+        , isBossFloor = False
+        }
+    
+    -- Pisos 4-6: Zona media - Mix de enemigos
+    , FloorData 
+        { floorNumber = 4
+        , floorEnemies = [Skeleton, Skeleton]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 5
+        , floorEnemies = [Reaper]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 6
+        , floorEnemies = [Skeleton, Slime, Slime]
+        , isBossFloor = False
+        }
+    
+    -- Pisos 7-9: Zona avanzada - Enemigos difíciles
+    , FloorData 
+        { floorNumber = 7
+        , floorEnemies = [Reaper, Skeleton]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 8
+        , floorEnemies = [Skeleton, Skeleton, Skeleton]
+        , isBossFloor = False
+        }
+    , FloorData 
+        { floorNumber = 9
+        , floorEnemies = [Reaper, Reaper]
+        , isBossFloor = False
+        }
+    
+    -- Piso 10: BOSS FINAL
+    , FloorData 
+        { floorNumber = 10
+        , floorEnemies = [Reaper, Skeleton, Skeleton]  -- Boss podría ser una combinación difícil
+        , isBossFloor = True
+        }
+    ]
+
+-- | Obtener los datos de un piso específico
+-- Retorna Nothing si el piso no existe
+getFloorData :: Int -> Maybe FloorData
+getFloorData floor = 
+    case filter (\fd -> floorNumber fd == floor) floorConfigurations of
+        []    -> Nothing       -- Piso no encontrado
+        (x:_) -> Just x        -- Retornar primer resultado (debería ser único)
 
