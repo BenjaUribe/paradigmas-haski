@@ -430,7 +430,7 @@ renderCorridor world =
             , -- Borde del panel
               translate 0 100 $ color (makeColorI 255 215 0 255) $ rectangleWire 700 350
             , -- Mensaje de bendición
-              translate (-330) 230 $ scale 0.4 0.4 $ color (makeColorI 255 215 0 255) $ text "Has sido bendecido!"
+              translate (-330) 230 $ scale 0.4 0.4 $ color (makeColorI 255 215 0 255) $ text "Los Moai te bendicen!"
             , -- Subtítulo
               translate (-330) 160 $ scale 0.25 0.25 $ color white $ text "Elige tu mejora:"
             , -- Opción 0: Vida
