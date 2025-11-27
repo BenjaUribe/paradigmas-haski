@@ -90,6 +90,9 @@ data GameScene =
   | InGame         -- ^ Pantalla principal del juego (combate, HUD)
   | SelectLevel    -- ^ Pantalla de selección de nivel
   | CreditsMenu    -- ^ Pantalla de créditos
+  | Victory        -- ^ Pantalla de victoria
+  | Defeat         -- ^ Pantalla de derrota
+  | Corridor      -- ^ Pantalla intermedia antes de entrar al combate
   deriving (Show, Eq)
 
 -- | Estado completo de la aplicación gráfica
@@ -106,6 +109,11 @@ data GameWorld = GameWorld
     , lastDiceRoll :: (Int, Int)     -- ^ Últimos valores de dados lanzados (d20, d8)
     , isBlocking :: Bool             -- ^ Flag para indicar si el jugador está bloqueando
     , combatMessage :: String        -- ^ Mensaje de combate a mostrar
+    , currentFloor :: Int            -- ^ Piso actual (0-10, donde 10 es el boss final)
+    , playerCorridorPos :: (Float, Float)  -- ^ Posición del jugador en pantalla Corridor (x, y)
+    , keysPressed :: [Key]           -- ^ Teclas actualmente presionadas
+    , blessingReached :: Bool        -- ^ Si el jugador llegó a la zona de bendición
+    , selectedBlessing :: Int        -- ^ Bendición seleccionada (0=Vida, 1=Ataque)
     } deriving (Show)
 
 -- Estado inicial del mundo
@@ -122,6 +130,11 @@ initialWorld chosenClass images = GameWorld
     , lastDiceRoll = (0, 0)
     , isBlocking = False        -- Inicialmente no está bloqueando
     , combatMessage = ""        -- Sin mensaje inicial
+    , currentFloor = 0          -- Sin piso seleccionado al inicio
+    , playerCorridorPos = (0, -300)  -- Posición inicial en la parte inferior central
+    , keysPressed = []          -- Sin teclas presionadas al inicio
+    , blessingReached = False   -- No ha llegado a la bendición
+    , selectedBlessing = 0      -- Vida por defecto
     }
 
 -- =============================================================================
@@ -161,6 +174,9 @@ render world = case currentScene world of
     InGame -> renderGame world                 -- Juego principal
     SelectLevel -> renderSelectLevel world     -- Selección de nivel
     CreditsMenu -> renderCreditsMenu world     -- Créditos
+    Victory -> renderVictory world             -- Victoria
+    Defeat -> renderDefeat world               -- Derrota
+    Corridor -> renderCorridor world         -- Pantalla pre-batalla
 
 -- Renderizar menú principal
 renderMainMenu :: GameWorld -> Picture
@@ -363,6 +379,85 @@ renderCreditsMenu world = pictures
       translate 0 (-220) $ scale 0.3 0.3 $ color green $ text "Presiona ESC para volver"
     ]
 
+-- Renderizar pantalla de victoria
+renderVictory :: GameWorld -> Picture
+renderVictory world = pictures
+    [ -- Fondo final
+      finalBackground (gameImages world)
+    , -- Texto de victoria grande
+      translate (-280) 100 $ scale 0.8 0.8 $ color (makeColorI 255 215 0 255) $ text "VICTORIA"
+    , -- Texto descriptivo
+      translate (-500) 0 $ scale 0.3 0.3 $ color white $ text "Has derrotado a todos los enemigos"
+    , -- Instrucciones
+      translate (-400) (-200) $ scale 0.25 0.25 $ color (greyN 0.8) $ text "Presiona ESC para volver al menu"
+    ]
+
+-- Renderizar pantalla de derrota
+renderDefeat :: GameWorld -> Picture
+renderDefeat world = pictures
+    [ -- Fondo final
+      finalBackground (gameImages world)
+    , -- Texto de derrota grande
+      translate (-260) 100 $ scale 0.8 0.8 $ color red $ text "DERROTA"
+    , -- Texto descriptivo
+      translate (-450) 0 $ scale 0.3 0.3 $ color white $ text "Has sido derrotado en combate"
+    , -- Instrucciones
+      translate (-400) (-200) $ scale 0.25 0.25 $ color (greyN 0.8) $ text "Presiona ESC para volver al menu"
+    ]
+
+-- Renderizar pantalla pre-batalla
+renderCorridor :: GameWorld -> Picture
+renderCorridor world = 
+    let (playerX, playerY) = playerCorridorPos world
+        player = worldPlayer world
+        images = gameImages world
+        playerSprite = getPlayerSprite images (playerClass player)
+        spriteScale = 2.0
+        hasReachedBlessing = blessingReached world
+        selectedBless = selectedBlessing world
+        
+        -- Verificar si el jugador está en la parte superior (y >= 200)
+        canEnterCombat = playerY >= 200
+    in 
+        if hasReachedBlessing
+        then pictures
+            [ -- Fondo moai
+              corridorBg images
+            , -- Sprite del jugador
+              translate playerX playerY $ scale spriteScale spriteScale $ playerSprite
+            , -- Panel oscuro de fondo para las bendiciones
+              translate 0 100 $ color (makeColorI 0 0 0 200) $ rectangleSolid 700 350
+            , -- Borde del panel
+              translate 0 100 $ color (makeColorI 255 215 0 255) $ rectangleWire 700 350
+            , -- Mensaje de bendición
+              translate (-330) 230 $ scale 0.4 0.4 $ color (makeColorI 255 215 0 255) $ text "Los Moai te bendicen!"
+            , -- Subtítulo
+              translate (-330) 160 $ scale 0.25 0.25 $ color white $ text "Elige tu mejora:"
+            , -- Opción 0: Vida
+              translate (-230) 100 $ scale 0.3 0.3 $ color (if selectedBless == 0 then yellow else white) $ 
+                text (if selectedBless == 0 then "> Mejorar Vida (+20 HP)" else "  Mejorar Vida (+20 HP)")
+            , -- Opción 1: Ataque
+              translate (-230) 50 $ scale 0.3 0.3 $ color (if selectedBless == 1 then yellow else white) $ 
+                text (if selectedBless == 1 then "> Mejorar Ataque (+5 DMG)" else "  Mejorar Ataque (+5 DMG)")
+            , -- Panel oscuro para las instrucciones
+              translate 0 (-250) $ color (makeColorI 0 0 0 200) $ rectangleSolid 800 50
+            , -- Instrucciones
+              translate (-390) (-260) $ scale 0.25 0.25 $ color green $ text "Usa flechas arriba/abajo, ENTER para confirmar"
+            ]
+        else pictures
+            [ -- Fondo moai
+              corridorBg images
+            , -- Sprite del jugador
+              translate playerX playerY $ scale spriteScale spriteScale $ playerSprite
+            , -- Texto informativo en la parte superior
+              translate (-350) 300 $ scale 0.35 0.35 $ color white $ text "Preparate para el combate"
+            , -- Instrucciones dinámicas
+              translate (-500) (-320) $ scale 0.25 0.25 $ color (if canEnterCombat then green else yellow) $ 
+                text (if canEnterCombat
+                     then "Presiona ENTER para recibir bendicion"
+                     else "Mueve al personaje hacia arriba (Flechas o WASD)")
+            ]
+
 -- Renderizar opciones de menú con selección
 renderMenuOptions :: [String] -> Int -> Picture
 renderMenuOptions options selected = pictures $
@@ -557,6 +652,9 @@ handleInput event world = case currentScene world of
     InGame -> handleGameInput event world
     SelectLevel -> handleSelectLevelInput event world  
     CreditsMenu -> handleCreditsInput event world
+    Victory -> handleVictoryInput event world
+    Defeat -> handleDefeatInput event world
+    Corridor -> handleCorridorInput event world
 
 -- Manejo de eventos en selección de nivel
 handleSelectLevelInput :: Event -> GameWorld -> GameWorld
@@ -573,15 +671,25 @@ handleSelectLevelInput (EventKey (SpecialKey KeyEnter) Down _ _) world =
         floorEnemies = case getFloorData selectedFloor of
             Nothing -> []  -- Si no hay datos, lista vacía
             Just floorData -> map createEnemy (Game.floorEnemies floorData)
+        
+        -- Decidir si ir a Corridor o directamente a InGame (pisos 0-3 saltan Corridor)
+        nextScene = if selectedFloor <= 3 then InGame else Corridor
     in 
         if canEnter
         then world 
-            { currentScene = InGame
+            { currentScene = nextScene  -- Ir a InGame si es piso 0, sino a Corridor
             , selectedMenuOption = 0
             -- Calculamos los próximos niveles usando tu nueva lógica
             , accesibleLvl = getNextLevel selectedFloor 
             -- Cargar enemigos del piso
             , currentFloorEnemies = floorEnemies
+            -- Guardar el piso actual
+            , currentFloor = selectedFloor
+            -- Resetear posición del jugador en Corridor
+            , playerCorridorPos = (0, -300)
+            -- Resetear estado de bendición
+            , blessingReached = False
+            , selectedBlessing = 0
             }
         else world -- Si está bloqueado, no hace nada
 
@@ -642,8 +750,6 @@ handleClassSelectionInput _ world = world
 
 -- Manejo de eventos en el juego (navegación de botones de acción)
 handleGameInput :: Event -> GameWorld -> GameWorld
-handleGameInput (EventKey (SpecialKey KeyEsc) Down _ _) world =
-    world { currentScene = MainMenu, selectedMenuOption = 0 }
 handleGameInput (EventKey (SpecialKey KeyUp) Down _ _) world =
     world { selectedAction = max 0 (selectedAction world - 1) }
 handleGameInput (EventKey (SpecialKey KeyDown) Down _ _) world =
@@ -665,7 +771,7 @@ executeAction actionIndex world =
 -- Intentar escapar: no se puede escapar, los enemigos atacan
 performEscape :: GameWorld -> GameWorld
 performEscape world =
-    let worldWithMessage = world { combatMessage = "Escapar es de cobardes, seras castigado" }
+    let worldWithMessage = world { combatMessage = "Escapar es de cobardes, seras castigado...." }
         -- Los enemigos aprovechan el intento de escape y atacan
         worldAfterAttack = enemiesAttackPlayer worldWithMessage
     in worldAfterAttack
@@ -783,22 +889,26 @@ enemiesAttackPlayerIO world = do
 -- Verificar el estado del combate después de un turno completo
 checkCombatStatus :: GameWorld -> GameWorld
 checkCombatStatus world
-    -- Si el jugador está muerto (HP <= 0), Game Over -> restaurar vida y volver al menú
-    | playerHealth (worldPlayer world) <= 0 = 
-        let restoredPlayer = createPlayer (playerClass (worldPlayer world))
-        in world 
-            { currentScene = MainMenu
-            , selectedMenuOption = 0
-            , worldPlayer = restoredPlayer  -- Restaurar vida del jugador
-            , accesibleLvl = [1, 2, 3]      -- Reiniciar progreso a los 3 primeros niveles
-            , currentFloorEnemies = []       -- Limpiar enemigos
-            }
-    
-    -- Si no quedan enemigos, Victoria -> ir a selección de nivel para continuar
+    -- Primero verificar si no quedan enemigos
     | null (currentFloorEnemies world) = 
-        world 
+        -- Si estamos en el piso 10 (boss final) -> VICTORIA
+        if currentFloor world == 10
+        then world 
+            { currentScene = Victory
+            , combatMessage = ""  -- Limpiar mensaje de combate
+            }
+        -- Si no es el piso 10, volver a selección de nivel
+        else world 
             { currentScene = SelectLevel
             , selectedMenuOption = 0
+            , combatMessage = ""  -- Limpiar mensaje de combate
+            }
+    
+    -- Luego verificar derrota: Si el jugador está muerto (HP <= 0) -> DERROTA
+    | playerHealth (worldPlayer world) <= 0 = 
+        world 
+            { currentScene = Defeat
+            , combatMessage = ""  -- Limpiar mensaje de combate
             }
     
     -- Si el jugador está vivo y quedan enemigos, continuar el combate
@@ -810,13 +920,132 @@ handleCreditsInput (EventKey (SpecialKey KeyEsc) Down _ _) world =
     world { currentScene = MainMenu, selectedMenuOption = 0 }  -- volver con 'esc'
 handleCreditsInput _ world = world
 
+-- Manejo de eventos en pantalla de victoria
+handleVictoryInput :: Event -> GameWorld -> GameWorld
+handleVictoryInput (EventKey (SpecialKey KeyEsc) Down _ _) world =
+    let restoredPlayer = createPlayer (playerClass (worldPlayer world))
+    in world 
+        { currentScene = MainMenu
+        , selectedMenuOption = 0
+        , worldPlayer = restoredPlayer  -- Restaurar vida del jugador
+        , accesibleLvl = [1, 2, 3]      -- Reiniciar progreso a los 3 primeros niveles
+        , currentFloorEnemies = []      -- Limpiar enemigos
+        , combatMessage = ""            -- Limpiar mensaje
+        , isBlocking = False            -- Resetear bloqueo
+        , currentFloor = 0              -- Resetear piso actual
+        }
+handleVictoryInput _ world = world
+
+-- Manejo de eventos en pantalla de derrota
+handleDefeatInput :: Event -> GameWorld -> GameWorld
+handleDefeatInput (EventKey (SpecialKey KeyEsc) Down _ _) world =
+    let restoredPlayer = createPlayer (playerClass (worldPlayer world))
+    in world 
+        { currentScene = MainMenu
+        , selectedMenuOption = 0
+        , worldPlayer = restoredPlayer  -- Restaurar vida del jugador
+        , accesibleLvl = [1, 2, 3]      -- Reiniciar progreso a los 3 primeros niveles
+        , currentFloorEnemies = []      -- Limpiar enemigos
+        , combatMessage = ""            -- Limpiar mensaje
+        , isBlocking = False            -- Resetear bloqueo
+        , currentFloor = 0              -- Resetear piso actual
+        }
+handleDefeatInput _ world = world
+
+-- Manejo de eventos en pantalla pre-batalla
+handleCorridorInput :: Event -> GameWorld -> GameWorld
+-- ENTER: Manejar según el estado de bendición
+handleCorridorInput (EventKey (SpecialKey KeyEnter) Down _ _) world =
+    let (_, playerY) = playerCorridorPos world
+        hasBlessing = blessingReached world
+        player = worldPlayer world
+        selectedBless = selectedBlessing world
+    in 
+        if hasBlessing
+        then 
+            -- Si ya tiene bendición, aplicar mejora y comenzar combate
+            let improvedPlayer = case selectedBless of
+                    0 -> player { playerHealth = playerHealth player + 20 }  -- Mejorar vida
+                    1 -> player { playerDamage = playerDamage player + 5 }   -- Mejorar ataque
+                    _ -> player
+            in world 
+                { currentScene = InGame
+                , worldPlayer = improvedPlayer
+                , playerCorridorPos = (0, -300)
+                , keysPressed = []
+                , blessingReached = False  -- Resetear para próximo nivel
+                , selectedBlessing = 0
+                }
+        else if playerY >= 200
+            then world { blessingReached = True }  -- Alcanzar la bendición
+            else world  -- No hacer nada si no está en posición
+
+-- Navegación en menú de bendición
+handleCorridorInput (EventKey (SpecialKey KeyUp) Down _ _) world =
+    if blessingReached world
+    then world { selectedBlessing = max 0 (selectedBlessing world - 1) }
+    else if SpecialKey KeyUp `elem` keysPressed world
+         then world
+         else world { keysPressed = SpecialKey KeyUp : keysPressed world }
+
+handleCorridorInput (EventKey (SpecialKey KeyDown) Down _ _) world =
+    if blessingReached world
+    then world { selectedBlessing = min 1 (selectedBlessing world + 1) }
+    else if SpecialKey KeyDown `elem` keysPressed world
+         then world
+         else world { keysPressed = SpecialKey KeyDown : keysPressed world }
+
+-- Registrar otras teclas presionadas (Down)
+handleCorridorInput (EventKey key Down _ _) world =
+    if key `elem` keysPressed world
+    then world  -- Ya está registrada
+    else world { keysPressed = key : keysPressed world }
+
+-- Registrar teclas liberadas (Up)
+handleCorridorInput (EventKey key Up _ _) world =
+    world { keysPressed = filter (/= key) (keysPressed world) }
+
+handleCorridorInput _ world = world
+
 -- =============================================================================
 -- ACTUALIZACIÓN DEL JUEGO
 -- =============================================================================
 
 -- Actualizar el mundo cada frame
 update :: Float -> GameWorld -> GameWorld
-update _ world = world  -- Sin actualizaciones automáticas por ahora
+update deltaTime world
+    -- Solo actualizar movimiento en la escena Corridor
+    | currentScene world == Corridor = updateCorridorMovement deltaTime world
+    | otherwise = world
+
+-- Actualizar movimiento en Corridor basado en teclas presionadas
+updateCorridorMovement :: Float -> GameWorld -> GameWorld
+updateCorridorMovement deltaTime world =
+    -- Si ya alcanzó la bendición, no mover al jugador
+    if blessingReached world
+    then world
+    else
+        let keys = keysPressed world
+            (x, y) = playerCorridorPos world
+            speed = 200 * deltaTime  -- Velocidad de movimiento (píxeles por segundo)
+            
+            -- Límites de la zona central (más restringida)
+            minX = -150
+            maxX = 150
+            minY = -280
+            maxY = 280
+            
+            -- Calcular nueva posición basada en teclas presionadas
+            newX = x + (if SpecialKey KeyRight `elem` keys || Char 'd' `elem` keys then speed else 0)
+                     - (if SpecialKey KeyLeft `elem` keys || Char 'a' `elem` keys then speed else 0)
+            newY = y + (if SpecialKey KeyUp `elem` keys || Char 'w' `elem` keys then speed else 0)
+                     - (if SpecialKey KeyDown `elem` keys || Char 's' `elem` keys then speed else 0)
+            
+            -- Aplicar límites
+            clampedX = max minX (min maxX newX)
+            clampedY = max minY (min maxY newY)
+        in
+            world { playerCorridorPos = (clampedX, clampedY) }
 
 -- =============================================================================
 -- MAIN

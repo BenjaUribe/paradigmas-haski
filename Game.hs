@@ -99,6 +99,8 @@ data GameImages = GameImages
     { menuBackground :: Picture      -- ^ Imagen de fondo del menú principal
     , selectLevelBg :: Picture       -- ^ Imagen de fondo para selección de nivel
     , arenaBackground :: Picture     -- ^ Imagen de fondo de la arena (InGame)
+    , finalBackground :: Picture     -- ^ Imagen de fondo para victoria/derrota
+    , corridorBg :: Picture         -- ^ Imagen de fondo para pantalla pre-batalla
     , warriorSprite :: Picture       -- ^ Sprite del Warrior
     , tankSprite :: Picture          -- ^ Sprite del Tank
     , rogueSprite :: Picture         -- ^ Sprite del Rogue
@@ -116,7 +118,7 @@ data GameImages = GameImages
 createPlayer :: CharacterClass -> Player
 createPlayer Warrior = Player
     { playerClass = Warrior
-    , playerHealth = 100
+    , playerHealth = 1000
     , playerDamage = 5.0
     }
 createPlayer Tank = Player
@@ -255,10 +257,18 @@ loadGameImages = do
     reaperImg <- loadSprite "img/reaper.bmp"
     warlockImg <- loadSprite "img/warlock.bmp"
     
+    -- Cargar fondo final (para victoria/derrota)
+    finalBg <- loadBackgroundImage "img/fondo_final.bmp"
+    
+    -- Cargar fondo pre-batalla
+    corridorBg <- loadBackgroundImage "img/corridor.bmp"
+    
     return GameImages
         { menuBackground = menuBg
         , selectLevelBg = levelBg
         , arenaBackground = arenaBg
+        , finalBackground = finalBg
+        , corridorBg = corridorBg
         , warriorSprite = warriorImg
         , tankSprite = tankImg
         , rogueSprite = rogueImg

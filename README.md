@@ -10,6 +10,7 @@ Para compilar y ejecutar el proyecto es necesario tener instalado GHC (Glasgow H
 # Actualiza e instala las dependencias necesarias
 sudo apt-get update
 sudo apt-get install -y freeglut3-dev
+sudo apt install cabal-install
 cabal update
 cabal install --lib gloss
 cabal install --lib mtl
