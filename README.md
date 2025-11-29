@@ -6,9 +6,11 @@
 - [Requisitos del Sistema](#requisitos-del-sistema)
 - [Instalación y Compilación](#instalación-y-compilación)
 - [Arquitectura del Código](#arquitectura-del-código)
+- [Sistema de Audio](#sistema-de-audio)
 - [Uso de la Mónada State](#uso-de-la-mónada-state)
 - [Conceptos de Programación Funcional](#conceptos-de-programación-funcional)
 - [Estructura de Archivos](#estructura-de-archivos)
+- [Controles del Juego](#controles-del-juego)
 
 ---
 
@@ -23,6 +25,7 @@ Este proyecto es un juego de tipo **Dungeon Crawler** desarrollado completamente
 - **Sistema de bendiciones** para mejorar al personaje entre niveles
 - **Mecánica de dados** (d20 y d8) para determinar acierto y daño
 - **Interfaz gráfica interactiva** usando la biblioteca Gloss
+- **Sistema de audio dinámico** con música adaptativa para cada escena
 
 ### Objetivo del Proyecto
 Demostrar el dominio de conceptos de programación funcional, especialmente:
@@ -44,6 +47,7 @@ Demostrar el dominio de conceptos de programación funcional, especialmente:
   - `mtl` - Para la mónada State
   - `random` - Para generación de números aleatorios
 - **FreeGLUT** - Para renderizado OpenGL
+- **FFmpeg** - Para reproducción de audio (incluye ffplay)
 
 ### Instalación de Dependencias
 
@@ -51,6 +55,7 @@ Demostrar el dominio de conceptos de programación funcional, especialmente:
 # Actualizar e instalar las dependencias del sistema
 sudo apt-get update
 sudo apt-get install -y freeglut3-dev
+sudo apt-get install ffmpeg
 
 # Instalar Cabal y actualizar el índice de paquetes
 sudo apt install cabal-install
@@ -110,6 +115,57 @@ Maneja toda la interacción con el usuario:
 - **Manejo de eventos:** Input del teclado y navegación entre escenas
 - **Game loop:** Actualización del estado y renderizado continuo
 - **Sistema de combate:** Integración con las funciones State de Game.hs
+- **Sistema de audio:** Control de música adaptativa y volumen
+
+---
+
+## Sistema de Audio
+
+El juego incluye un **sistema de audio dinámico** que adapta la música según la escena actual, mejorando la inmersión del jugador.
+
+### Características del Sistema de Audio
+
+- **Música adaptativa:** Cada escena tiene su propia pista de fondo
+- **Transiciones suaves:** La música cambia automáticamente al cambiar de escena
+- **Control de volumen:** Ajuste en el menú principal (Q/E teclas)
+- **Implementación funcional:** Integrado usando IO y el tipo `GameAudio`
+
+### Pistas de Audio por Escena
+
+| Escena | Archivo de Audio | Descripción |
+|--------|------------------|-------------|
+| Menú Principal | `menu.wav` | Música ambiental del menú |
+| Selección de Clase | `class_select.wav` | Música para elegir personaje |
+| Selección de Nivel | `level_select.wav` | Música para elegir piso |
+| Pasillo (Corridor) | `corridor.wav` | Música de tensión pre-batalla |
+| Combate Normal | `battle.wav` | Música de acción para peleas |
+| Boss Final | `boss.wav` | Música épica para el Warlock |
+| Victoria | `victory.wav` | Música triunfal |
+| Derrota | `defeat.wav` | Música melancólica |
+| Créditos | `credits.wav` | Música de cierre |
+
+### Implementación Técnica
+
+El sistema de audio utiliza **ffplay** (parte de FFmpeg) para reproducir archivos WAV:
+
+```haskell
+-- Tipo de datos para almacenar rutas de audio
+data GameAudio = GameAudio
+    { menuTheme :: FilePath
+    , classSelectTheme :: FilePath
+    , levelSelectTheme :: FilePath
+    , battleTheme :: FilePath
+    , corridorTheme :: FilePath
+    , bossTheme :: FilePath
+    , victoryTheme :: FilePath
+    , defeatTheme :: FilePath
+    } deriving (Show)
+```
+
+El cambio de música se gestiona mediante la función `switchSceneMusic` que:
+1. Detiene la pista actual si existe
+2. Obtiene la ruta del nuevo tema según la escena
+3. Inicia la reproducción con el volumen configurado
 
 ---
 
@@ -286,19 +342,30 @@ paradigmas-haski/
 ├── Game.hs                 # Módulo de lógica del juego
 ├── Makefile                # Script de compilación
 ├── README.md               # Este archivo
-└── img/                    # Recursos gráficos
-    ├── entry.bmp           # Fondo del menú principal
-    ├── niveles.bmp         # Fondo de selección de niveles
-    ├── arena.bmp           # Fondo de combate
-    ├── moai.bmp            # Fondo del pasillo de bendiciones
-    ├── fondo_final.bmp     # Fondo de victoria/derrota
-    ├── Warrior.bmp         # Sprite del Warrior
-    ├── tank.bmp            # Sprite del Tank
-    ├── Rogue.bmp           # Sprite del Rogue
-    ├── slime.bmp           # Sprite del Slime
-    ├── skeleton.bmp        # Sprite del Skeleton
-    ├── reaper.bmp          # Sprite del Reaper
-    └── warlock.bmp         # Sprite del Warlock (Boss)
+├── play_music.sh           # Script para reproducción de audio
+├── img/                    # Recursos gráficos
+│   ├── entry.bmp           # Fondo del menú principal
+│   ├── niveles.bmp         # Fondo de selección de niveles
+│   ├── arena.bmp           # Fondo de combate
+│   ├── moai.bmp            # Fondo del pasillo de bendiciones
+│   ├── fondo_final.bmp     # Fondo de victoria/derrota
+│   ├── Warrior.bmp         # Sprite del Warrior
+│   ├── tank.bmp            # Sprite del Tank
+│   ├── Rogue.bmp           # Sprite del Rogue
+│   ├── slime.bmp           # Sprite del Slime
+│   ├── skeleton.bmp        # Sprite del Skeleton
+│   ├── reaper.bmp          # Sprite del Reaper
+│   └── warlock.bmp         # Sprite del Warlock (Boss)
+└── audio/                  # Recursos de audio
+    ├── menu.wav            # Música del menú principal
+    ├── class_select.wav    # Música de selección de clase
+    ├── level_select.wav    # Música de selección de nivel
+    ├── battle.wav          # Música de combate
+    ├── corridor.wav        # Música del pasillo
+    ├── boss.wav            # Música del boss
+    ├── victory.wav         # Música de victoria
+    ├── defeat.wav          # Música de derrota
+    └── credits.wav         # Música de créditos
 ```
 
 ---
@@ -318,7 +385,12 @@ paradigmas-haski/
 - **Flechas Arriba/Abajo:** Seleccionar acción
 - **Enter:** Ejecutar acción seleccionada
 
+### Control de Audio
+- **E (Más):** Aumentar volumen de música
+- **Q (Menos):** Disminuir volumen de música
+
 ---
+
 
 ## Autores
 
@@ -339,6 +411,7 @@ Las principales lecciones aprendidas incluyen:
 2. La inmutabilidad y funciones puras hacen el código más predecible y testeable
 3. Los tipos algebraicos y pattern matching proporcionan código seguro y expresivo
 4. La composición de funciones permite construir sistemas complejos desde piezas simples
+5. La integración de IO con programación funcional permite crear aplicaciones interactivas con audio y gráficos
 
 ---
 

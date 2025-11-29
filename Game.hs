@@ -163,18 +163,18 @@ createEnemy Slime = Enemy
     }
 createEnemy Reaper = Enemy
     { enemyClass = Reaper
-    , enemyHealth = 150
-    , enemyDamage = 8.5
+    , enemyHealth = 70
+    , enemyDamage = 7.0
     }
 createEnemy Skeleton = Enemy
     { enemyClass = Skeleton
-    , enemyHealth = 60
+    , enemyHealth = 50
     , enemyDamage = 6.0
     }
 createEnemy Warlock = Enemy
     { enemyClass = Warlock
-    , enemyHealth = 200
-    , enemyDamage = 12.0
+    , enemyHealth = 160
+    , enemyDamage = 10.0
     }
 
 
@@ -223,10 +223,9 @@ PARA AGREGAR NUEVAS IMAGENES:
 
 FORMATOS SOPORTADOS:
 - Actualmente solo BMP (por limitaciones de Gloss)
-- Para otros formatos, necesitarias gloss-juicy
 -}
 
--- | Cargar una imagen individual con manejo robusto de errores
+-- | Cargar una imagen individual con manejo de errores
 -- Si la imagen no se puede cargar, retorna un fondo solido como respaldo
 loadBackgroundImage :: String -> IO Picture
 loadBackgroundImage imagePath = do
@@ -268,7 +267,7 @@ loadGameImages = do
     -- Cargar imagen de fondo de la arena (InGame)
     arenaBg <- loadBackgroundImage "img/arena.bmp"
     
-    -- Cargar sprites del jugador segun clase (usando loadSprite para mejor manejo)
+    -- Cargar sprites del jugador segun clase 
     warriorImg <- loadSprite "img/Warrior.bmp"
     tankImg <- loadSprite "img/tank.bmp"
     rogueImg <- loadSprite "img/Rogue.bmp"
@@ -316,7 +315,6 @@ getEnemySprite images Warlock = warlockSprite images
 -- | Cargar todas las rutas de musica del juego
 -- Retorna un GameAudio con todas las rutas a los archivos de musica
 -- Nota: Las rutas se almacenan como FilePath, no se cargan directamente
--- esto permite mayor flexibilidad y control desde Main.hs
 loadGameAudio :: IO GameAudio
 loadGameAudio = do
     -- Verificar que existe la carpeta de audio
@@ -334,12 +332,9 @@ loadGameAudio = do
         }
 
 -- =============================================================================
--- LOGICA DEL JUEGO
--- =============================================================================
-
--- =============================================================================
 -- CONFIGURACION DE PISOS Y ENEMIGOS
 -- =============================================================================
+
 {-|
 Esta seccion define que enemigos aparecen en cada piso del juego.
 
@@ -369,7 +364,7 @@ floorConfigurations =
         , isBossFloor = False
         }
     
-    -- Pisos 1-3: Zona inicial - Slimes
+    -- Pisos 1-3: Zona inicial
     , FloorData 
         { floorNumber = 1
         , floorEnemies = [Slime, Slime]
@@ -386,7 +381,7 @@ floorConfigurations =
         , isBossFloor = False
         }
     
-    -- Pisos 4-6: Zona media - Mix de enemigos
+    -- Pisos 4-6: Zona media
     , FloorData 
         { floorNumber = 4
         , floorEnemies = [Skeleton, Slime]
@@ -403,7 +398,7 @@ floorConfigurations =
         , isBossFloor = False
         }
     
-    -- Pisos 7-9: Zona avanzada - Enemigos dificiles
+    -- Pisos 7-9: Zona avanzada
     , FloorData 
         { floorNumber = 7
         , floorEnemies = [Reaper, Skeleton]
@@ -411,7 +406,7 @@ floorConfigurations =
         }
     , FloorData 
         { floorNumber = 8
-        , floorEnemies = [Skeleton, Slime, Skeleton]
+        , floorEnemies = [Skeleton, Slime]
         , isBossFloor = False
         }
     , FloorData 

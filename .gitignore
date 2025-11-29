@@ -4,6 +4,7 @@
 *.exe
 game
 Main
+game_bin
 
 # Cabal
 dist/

@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # Función de limpieza
 cleanup() {
-    echo "🔇 Limpiando procesos de audio..."
+    echo " Limpiando procesos de audio..."
     killall -9 ffplay 2>/dev/null
     pkill -9 ffplay 2>/dev/null
     exit 0

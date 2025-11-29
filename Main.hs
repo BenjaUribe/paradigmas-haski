@@ -160,8 +160,8 @@ initialWorld chosenClass images audio = GameWorld
     , selectedBlessing = 0      -- Vida por defecto
     , currentMusicPath = menuTheme audio  -- Musica del menu al inicio
     , lastMusicScene = MainMenu  -- La musica fue cambiada en MainMenu al inicio
-    , musicVolume = 50  -- Volumen inicial al 50%
-    }
+    , musicVolume = 20  -- Volumen inicial al 20%
+    } 
 
 -- =============================================================================
 -- RENDERIZADO
@@ -300,7 +300,7 @@ renderSelectLevel world = pictures
     , -- Titulo
       translate (-600) 280 $ scale 0.4 0.4 $ color white $ text "SELECCIONA TU PISO"
     , -- Instrucciones
-      translate (-400) (-320) $ scale 0.2 0.2 $ color (greyN 0.7) $ text "Usa numeros 1-9 o flechas para seleccionar, Enter para confirmar, ESC para volver"
+      translate (-400) (-320) $ scale 0.2 0.2 $ color (greyN 0.7) $ text "Usa las flechas para seleccionar"
     ]
 
 -- Definicion de las posiciones de los niveles en la pantalla
@@ -424,6 +424,7 @@ renderCreditsMenu world = pictures
     , translate (-450) 20 $ scale 0.25 0.25 $ color white $ text "Marcelo Rojas"
     , translate (-450) (-10) $ scale 0.25 0.25 $ color white $ text "Elias Ojeda"
     , translate (-450) (-40) $ scale 0.25 0.25 $ color white $ text "Leonardo Moreno"
+    , translate (-450) (-70) $ scale 0.25 0.25 $ color white $ text "Alann Kahler"
     , -- Boton volver
       translate 0 (-220) $ scale 0.3 0.3 $ color green $ text "Presiona ESC para volver"
     ]
@@ -1164,13 +1165,13 @@ switchSceneMusic oldScene newScene audio volume floor = do
     -- Solo cambiar si la ruta de musica es DIFERENTE
     if oldMusicPath /= newMusicPath
     then do
-        putStrLn $ "🎵 Cambiando musica: " ++ show newScene
+        putStrLn $ "Cambiando musica: " ++ show newScene
         stopCurrentMusic
         _ <- playMusicFile newMusicPath adjustedVolume
         return ()
     else
         -- Misma musica, no hacer nada (no cortar)
-        putStrLn $ "🎵 Misma musica, continuando: " ++ show newScene
+        putStrLn $ "Misma musica, continuando: " ++ show newScene
 
 -- Funciones IO para playIO
 renderIO :: GameWorld -> IO Picture
@@ -1247,10 +1248,10 @@ playMusicFile filePath volume = do
   fileExists <- doesFileExist filePath
   if not fileExists
   then do
-    putStrLn $ "⚠️  Archivo de audio no encontrado: " ++ filePath
+    putStrLn $ "Archivo de audio no encontrado: " ++ filePath
     return Nothing
   else do
-    putStrLn $ "🎵 Reproduciendo: " ++ filePath ++ " (vol: " ++ show volume ++ ")"
+    putStrLn $ "Reproduciendo: " ++ filePath ++ " (vol: " ++ show volume ++ ")"
     let volStr = show volume
     -- Crear proceso en nuevo grupo para poder matarlo facilmente
     -- -af con aresample para evitar chirridos de audio
@@ -1294,9 +1295,8 @@ main = do
     -- Crear el mundo inicial
     let initialState = initialWorld Warrior images audio
     
-    -- Instalar manejador para Ctrl+C y cierre del programa
     let cleanup = do
-            putStrLn "\n🔇 Deteniendo musica..."
+            putStrLn "\n Deteniendo musica..."
             stopCurrentMusic
     
     _ <- installHandler sigINT (Catch (cleanup >> exitSuccess)) Nothing
