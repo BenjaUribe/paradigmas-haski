@@ -2,7 +2,7 @@
 **INFO188 - Tarea 1: Programación Funcional**
 
 ## Video Trailer
-**[Ver Trailer del Juego en Google Drive](https://drive.google.com/file/d/10afGnnDlsMNf5dkiMu24Mdg9P1eJVvyW/view)**
+**[Ver Trailer del Juego en Google Drive](https://drive.google.com/file/d/1PznpV-OmhMe9qEIWzWd3HyIFqV8ECCQl/view?usp=sharing)**
 
 ---
 
@@ -423,6 +423,7 @@ Las principales lecciones aprendidas incluyen:
 **Universidad Austral de Chile**  
 **INFO188 - Programación en paradigmas funcional y paralelo**  
 **2025**
+
 
 
 
